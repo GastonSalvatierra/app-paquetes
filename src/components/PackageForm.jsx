@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import Quagga from 'quagga'
-import { jsPDF } from 'jspdf'
 
 export default function PackageForm({ package: pkg, products, onUpdate }) {
   const [scannedCode, setScannedCode] = useState('')
@@ -145,92 +144,51 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
     XLSX.writeFile(wb, `COMPRAS_${pkg.id}_${new Date().toISOString().split('T')[0]}.xls`)
   }
 
-  // Función para generar PDF SIN usar jspdf-autotable
-  const generatePDFSimple = () => {
+  // ✅ Nueva función para generar PDF con importación dinámica
+  const generatePDFAlternative = async () => {
     try {
+      // Importa jsPDF y el plugin de manera asíncrona
+      const { jsPDF } = await import('jspdf')
+      await import('jspdf-autotable')
+
       const doc = new jsPDF()
 
-      // Título
       doc.setFontSize(18)
       doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
 
-      // Datos generales
       doc.setFontSize(12)
       doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
       doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
       doc.text(`Total de items: ${totalItems}`, 14, 39)
 
-      let y = 46
+      let yOffset = 46
       if (responsible) {
-        doc.text(`Responsable: ${responsible}`, 14, y)
-        y += 7
+        doc.text(`Responsable: ${responsible}`, 14, yOffset)
+        yOffset += 7
       }
       if (laboratory) {
-        doc.text(`Laboratorio: ${laboratory}`, 14, y)
-        y += 7
+        doc.text(`Laboratorio: ${laboratory}`, 14, yOffset)
+        yOffset += 7
       }
       if (isPsychotropic) {
-        doc.text(`Tipo: Psicofármaco`, 14, y)
-        y += 7
+        doc.text(`Tipo: Psicofármaco`, 14, yOffset)
+        yOffset += 7
       }
 
-      y += 10 // espacio antes tabla
-
-      // Tabla
-      const marginX = 14
-      const rowHeight = 8
-      const colWidths = [40, 80, 30, 30] // ancho columnas: código, producto, cantidad, observaciones
-      const headers = ['Código', 'Producto', 'Cantidad', 'Observaciones']
-
-      // Dibujar encabezado tabla
-      doc.setFillColor(52, 73, 94) // azul oscuro
-      doc.setTextColor(255, 255, 255)
-      doc.setFontSize(11)
-      let x = marginX
-      headers.forEach((header, i) => {
-        doc.rect(x, y, colWidths[i], rowHeight, 'F') // fondo relleno
-        doc.text(header, x + 2, y + 6)
-        x += colWidths[i]
-      })
-
-      y += rowHeight
-      doc.setTextColor(0, 0, 0)
-      doc.setFontSize(10)
-
-      // Salto de página
-      const pageHeight = doc.internal.pageSize.height
-      const maxY = pageHeight - 20
-
-      normalizedItems.forEach(item => {
-        if (y + rowHeight > maxY) {
-          doc.addPage()
-          y = 20
-
-          // Repetir encabezado
-          doc.setFillColor(52, 73, 94)
-          doc.setTextColor(255, 255, 255)
-          doc.setFontSize(11)
-          let x2 = marginX
-          headers.forEach((header, i) => {
-            doc.rect(x2, y, colWidths[i], rowHeight, 'F')
-            doc.text(header, x2 + 2, y + 6)
-            x2 += colWidths[i]
-          })
-          y += rowHeight
-          doc.setTextColor(0, 0, 0)
-          doc.setFontSize(10)
-        }
-
-        x = marginX
-        doc.text(item.barcode, x + 2, y + 6)
-        x += colWidths[0]
-        doc.text(item.name, x + 2, y + 6)
-        x += colWidths[1]
-        doc.text(String(item.quantity), x + 2, y + 6)
-        x += colWidths[2]
-        doc.text(item.manual ? 'Ingreso Manual' : '', x + 2, y + 6)
-
-        y += rowHeight
+      // Generar tabla con jspdf-autotable
+      doc.autoTable({
+        startY: yOffset + 5,
+        head: [['Código', 'Producto', 'Cantidad', 'Observaciones']],
+        body: normalizedItems.map(item => [
+          item.barcode,
+          item.name,
+          item.quantity.toString(),
+          item.manual ? 'Ingreso Manual' : ''
+        ]),
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [52, 73, 94] },
+        alternateRowStyles: { fillColor: [238, 238, 238] },
+        margin: { left: 14, right: 14 }
       })
 
       doc.save(`lista_paquete_${pkg.id}.pdf`)
@@ -346,102 +304,134 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             <div className="mb-4">
               <label htmlFor="barcodeInput" className="form-label">Escáner de código de barras</label>
               <input
-                type="text"
-                className="form-control"
-                id="barcodeInput"
                 ref={inputRef}
+                id="barcodeInput"
+                type="text"
                 value={scannedCode}
-                onChange={handleScan}
-                onKeyDown={handleScan}
-                placeholder="Ingrese o escanee el código de barras"
+                onChange={(e) => setScannedCode(e.target.value)}
+                onKeyPress={handleScan}
+                placeholder="Pase el código de barras por el lector y presione Enter"
+                className="form-control form-control-lg"
               />
-              <button className="btn btn-secondary mt-2" onClick={startBarcodeScanner}>
-                Escanear con cámara
+              <div className="form-text">Simula un lector de código de barras ingresando el código manualmente</div>
+            </div>
+            <div className="d-grid gap-2">
+              <button className="btn btn-outline-primary" onClick={startBarcodeScanner}>
+                <i className="bi bi-camera-video me-2"></i>Escanear código de barras
               </button>
             </div>
+            <div id="reader" style={{ width: '100%', height: '300px' }}></div>
           </>
         ) : (
-          <form onSubmit={handleManualSubmit} className="mb-4">
-            <h6>Agregar Producto Manualmente</h6>
-            <div className="mb-3">
-              <label className="form-label">Código de Barras</label>
-              <input
-                type="text"
-                className="form-control"
-                value={manualProduct.barcode}
-                onChange={(e) => setManualProduct({ ...manualProduct, barcode: e.target.value })}
-                required
-                readOnly={manualProduct.barcode !== ''}
-              />
+          <div className="card mb-4">
+            <div className="card-header">
+              <h6 className="mb-0">Agregar Producto Manualmente</h6>
             </div>
-            <div className="mb-3">
-              <label className="form-label">Nombre del Producto</label>
-              <input
-                type="text"
-                className="form-control"
-                value={manualProduct.name}
-                onChange={(e) => setManualProduct({ ...manualProduct, name: e.target.value })}
-                required
-              />
+            <div className="card-body">
+              <form onSubmit={handleManualSubmit}>
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label htmlFor="barcode" className="form-label">Código de Barras *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="barcode"
+                        value={manualProduct.barcode}
+                        onChange={(e) => setManualProduct({ ...manualProduct, barcode: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label htmlFor="name" className="form-label">Nombre del Producto *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="name"
+                        value={manualProduct.name}
+                        onChange={(e) => setManualProduct({ ...manualProduct, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="d-flex gap-2">
+                  <button type="submit" className="btn btn-success">
+                    <i className="bi bi-check-circle me-2"></i>Agregar Producto
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => {
+                      setShowManualForm(false)
+                      setManualProduct({ barcode: '', name: '' })
+                    }}>
+                    <i className="bi bi-x-circle me-2"></i>Cancelar
+                  </button>
+                </div>
+              </form>
             </div>
-            <button type="submit" className="btn btn-primary me-2">Agregar</button>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowManualForm(false)}>Cancelar</button>
-          </form>
+          </div>
         )}
 
-        <div className="table-responsive mb-4">
-          <table className="table table-bordered align-middle">
-            <thead className="table-primary">
-              <tr>
-                <th>Código</th>
-                <th>Producto</th>
-                <th>Cantidad</th>
-                <th>Observaciones</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {normalizedItems.map(item => (
-                <tr key={item.barcode}>
-                  <td>{item.barcode}</td>
-                  <td>{item.name}</td>
-                  <td>
-                    <div className="d-flex align-items-center">
-                      <button
-                        className="btn btn-sm btn-outline-secondary me-1"
-                        onClick={() => adjustQuantity(item.barcode, -1)}
-                        disabled={item.quantity <= 1}
-                      >-</button>
-                      <span>{item.quantity}</span>
-                      <button
-                        className="btn btn-sm btn-outline-secondary ms-1"
-                        onClick={() => adjustQuantity(item.barcode, 1)}
-                      >+</button>
-                    </div>
-                  </td>
-                  <td>{item.manual ? 'Ingreso Manual' : ''}</td>
-                  <td>
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={() => removeItem(item.barcode)}
-                    >
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h5>Productos en el paquete</h5>
+          <span className="badge bg-primary">{totalItems} items total</span>
         </div>
 
-        <div className="d-flex gap-2">
-          <button className="btn btn-success" onClick={generatePDFSimple}>
-            Exportar PDF
-          </button>
-          <button className="btn btn-outline-success" onClick={generateExcel}>
-            Exportar Excel
-          </button>
-        </div>
+        {normalizedItems.length === 0 ? (
+          <div className="text-center py-4">
+            <i className="bi bi-upc-scan display-4 text-muted"></i>
+            <p className="mt-3 text-muted">No hay productos escaneados aún. Comienza a escanear productos.</p>
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table table-striped table-hover">
+              <thead className="table-dark">
+                <tr>
+                  <th>Código</th>
+                  <th>Producto</th>
+                  <th>Cantidad</th>
+                  <th>Observaciones</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {normalizedItems.map((item) => (
+                  <tr key={item.barcode}>
+                    <td className="font-monospace">{item.barcode}</td>
+                    <td>{item.name}</td>
+                    <td>
+                      <div className="d-flex align-items-center">
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => adjustQuantity(item.barcode, -1)}>-</button>
+                        <span className="mx-2">{item.quantity}</span>
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => adjustQuantity(item.barcode, 1)}>+</button>
+                      </div>
+                    </td>
+                    <td>
+                      {item.manual && <span className="badge bg-warning text-dark"><i className="bi bi-pencil-square me-1"></i>Ingreso Manual</span>}
+                    </td>
+                    <td>
+                      <button className="btn btn-sm btn-danger" onClick={() => removeItem(item.barcode)}>
+                        <i className="bi bi-trash"></i>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {pkg.items.length > 0 && (
+          <div className="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+            <button onClick={generatePDFAlternative} className="btn btn-danger me-2">
+              <i className="bi bi-file-earmark-pdf me-2"></i>Generar PDF
+            </button>
+            <button onClick={generateExcel} className="btn btn-success">
+              <i className="bi bi-file-earmark-excel me-2"></i>Generar Excel
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
