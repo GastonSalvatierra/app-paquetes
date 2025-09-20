@@ -149,74 +149,61 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   }
 
   // Nueva función para generar PDF con toda la info requerida
-  const generatePDFAlternative = async () => {
-    try {
-      const { jsPDF } = await import('jspdf')
-      await import('jspdf-autotable')
+ const generatePDFAlternative = () => {
+  try {
+    const doc = new jsPDF()
 
-      const doc = new jsPDF()
+    // Título
+    doc.setFontSize(18)
+    doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
 
-      doc.setFontSize(18)
-      doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
+    // Datos del paquete y rótulo
+    doc.setFontSize(12)
+    doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
+    doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
+    doc.text(`Total de items: ${totalItems}`, 14, 39)
 
-      doc.setFontSize(12)
-      doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
-      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
-      const totalItems = pkg.items.reduce((total, item) => total + item.quantity, 0)
-      doc.text(`Total de items: ${totalItems}`, 14, 39)
+    // Info responsable, laboratorio, psicofármaco
+    let yOffset = 46
+    if (responsible) {
+      doc.text(`Responsable: ${responsible}`, 14, yOffset)
+      yOffset += 7
+    }
+    if (laboratory) {
+      doc.text(`Laboratorio: ${laboratory}`, 14, yOffset)
+      yOffset += 7
+    }
+    if (isPsychotropic) {
+      doc.text(`Tipo: Psicofármaco`, 14, yOffset)
+      yOffset += 7
+    }
 
-      // Info del responsable, laboratorio y psicofármaco
-      let yOffset = 46
-      if (responsible) {
-        doc.text(`Responsable: ${responsible}`, 14, yOffset)
-        yOffset += 7
-      }
-      if (laboratory) {
-        doc.text(`Laboratorio: ${laboratory}`, 14, yOffset)
-        yOffset += 7
-      }
-      if (isPsychotropic) {
-        doc.text(`Tipo: Psicofármaco`, 14, yOffset)
-        yOffset += 7
-      }
-
-      // Tabla con los productos
-      const normalizedItems = Object.values(
-        pkg.items.reduce((acc, item) => {
-          if (!acc[item.barcode]) {
-            acc[item.barcode] = { ...item }
-          } else {
-            acc[item.barcode].quantity += item.quantity
-          }
-          return acc
-        }, {})
-      )
-
-      const tableColumn = ['Código', 'Producto', 'Cantidad', 'Observaciones']
-      const tableRows = normalizedItems.map(item => [
+    // Generar tabla con jspdf-autotable
+    doc.autoTable({
+      startY: yOffset + 5,
+      head: [['Código', 'Producto', 'Cantidad', 'Observaciones']],
+      body: normalizedItems.map(item => [
         item.barcode,
         item.name,
         item.quantity.toString(),
         item.manual ? 'Ingreso Manual' : ''
-      ])
+      ]),
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [52, 73, 94] }, // color azul oscuro
+      alternateRowStyles: { fillColor: [238, 238, 238] }, // gris claro alternado
+      margin: { left: 14, right: 14 }
+    })
 
-      doc.autoTable({
-        startY: yOffset + 10,
-        head: [tableColumn],
-        body: tableRows,
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [41, 128, 185] },
-        margin: { left: 14, right: 14 }
-      })
-
-      doc.save(`lista_paquete_${pkg.id}.pdf`)
-    } catch (error) {
-      console.error('Error al generar PDF:', error)
-      setMessage('Error al generar el PDF. Verifica la consola para más detalles.')
-      setMessageType('danger')
-      setTimeout(() => setMessage(''), 5000)
-    }
+    // Guardar archivo
+    doc.save(`lista_paquete_${pkg.id}.pdf`)
+  } catch (error) {
+    console.error('Error al generar PDF:', error)
+    setMessage('Error al generar el PDF. Verifica la consola para más detalles.')
+    setMessageType('danger')
+    setTimeout(() => setMessage(''), 5000)
   }
+}
+
 
   const startBarcodeScanner = () => {
     Quagga.init(
