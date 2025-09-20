@@ -14,7 +14,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   const [showManualForm, setShowManualForm] = useState(false)
   const [manualProduct, setManualProduct] = useState({ barcode: '', name: '' })
 
-  // ✅ Nuevos estados para la información del rótulo
+  // Nuevos estados para la información del rótulo
   const [responsible, setResponsible] = useState('')
   const [laboratory, setLaboratory] = useState('')
   const [isPsychotropic, setIsPsychotropic] = useState(false)
@@ -148,73 +148,75 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
     XLSX.writeFile(wb, `COMPRAS_${pkg.id}_${new Date().toISOString().split('T')[0]}.xls`)
   }
 
- // ... (resto del código del componente)
-
-const generatePDFAlternative = async () => {
+  // Nueva función para generar PDF con toda la info requerida
+  const generatePDFAlternative = async () => {
     try {
-        // ✅ Importación dinámica para jsPDF y jspdf-autotable
-        const { jsPDF } = await import('jspdf');
-        await import('jspdf-autotable');
+      const { jsPDF } = await import('jspdf')
+      await import('jspdf-autotable')
 
-        const doc = new jsPDF();
-        
-        // ✅ Título del PDF
-        doc.setFontSize(18);
-        doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' });
-    
-        // ✅ Información del paquete y nuevo rótulo
-        doc.setFontSize(12);
-        doc.text(`ID del Paquete: ${pkg.id}`, 14, 25);
-        doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32);
-        doc.text(`Total de items: ${totalItems}`, 14, 39);
-    
-        // ✅ Nuevos campos en el rótulo
-        let yOffset = 46;
-        if (responsible) {
-            doc.text(`Responsable: ${responsible}`, 14, yOffset);
-            yOffset += 7;
-        }
-        if (laboratory) {
-            doc.text(`Laboratorio: ${laboratory}`, 14, yOffset);
-            yOffset += 7;
-        }
-        if (isPsychotropic) {
-            doc.text(`Tipo: Psicofármaco`, 14, yOffset);
-            yOffset += 7;
-        }
+      const doc = new jsPDF()
 
-        // Encabezados de tabla
-        const startY = yOffset + 5;
-        doc.setFont(undefined, 'bold');
-        doc.text('Código', 15, startY);
-        doc.text('Producto', 55, startY);
-        doc.text('Cantidad', 135, startY);
-        doc.text('Observaciones', 165, startY);
-        doc.line(14, startY + 2, 196, startY + 2);
-        doc.setFont(undefined, 'normal');
-    
-        let yPosition = startY + 10;
-        normalizedItems.forEach((item) => {
-            if (yPosition > 270) {
-                doc.addPage();
-                yPosition = 20;
-            }
-            doc.text(item.barcode, 15, yPosition);
-            doc.text(item.name, 55, yPosition);
-            doc.text(item.quantity.toString(), 135, yPosition);
-            doc.text(item.manual ? 'Ingreso Manual' : '', 165, yPosition);
-            yPosition += 10;
-        });
+      doc.setFontSize(18)
+      doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
 
-        // ✅ Guardar y descargar el PDF
-        doc.save(`lista_paquete_${pkg.id}.pdf`);
+      doc.setFontSize(12)
+      doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
+      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
+      const totalItems = pkg.items.reduce((total, item) => total + item.quantity, 0)
+      doc.text(`Total de items: ${totalItems}`, 14, 39)
+
+      // Info del responsable, laboratorio y psicofármaco
+      let yOffset = 46
+      if (responsible) {
+        doc.text(`Responsable: ${responsible}`, 14, yOffset)
+        yOffset += 7
+      }
+      if (laboratory) {
+        doc.text(`Laboratorio: ${laboratory}`, 14, yOffset)
+        yOffset += 7
+      }
+      if (isPsychotropic) {
+        doc.text(`Tipo: Psicofármaco`, 14, yOffset)
+        yOffset += 7
+      }
+
+      // Tabla con los productos
+      const normalizedItems = Object.values(
+        pkg.items.reduce((acc, item) => {
+          if (!acc[item.barcode]) {
+            acc[item.barcode] = { ...item }
+          } else {
+            acc[item.barcode].quantity += item.quantity
+          }
+          return acc
+        }, {})
+      )
+
+      const tableColumn = ['Código', 'Producto', 'Cantidad', 'Observaciones']
+      const tableRows = normalizedItems.map(item => [
+        item.barcode,
+        item.name,
+        item.quantity.toString(),
+        item.manual ? 'Ingreso Manual' : ''
+      ])
+
+      doc.autoTable({
+        startY: yOffset + 10,
+        head: [tableColumn],
+        body: tableRows,
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [41, 128, 185] },
+        margin: { left: 14, right: 14 }
+      })
+
+      doc.save(`lista_paquete_${pkg.id}.pdf`)
     } catch (error) {
-        console.error('Error al generar PDF:', error);
-        setMessage('Error al generar el PDF. Verifica la consola para más detalles.');
-        setMessageType('danger');
-        setTimeout(() => setMessage(''), 5000);
+      console.error('Error al generar PDF:', error)
+      setMessage('Error al generar el PDF. Verifica la consola para más detalles.')
+      setMessageType('danger')
+      setTimeout(() => setMessage(''), 5000)
     }
-}
+  }
 
   const startBarcodeScanner = () => {
     Quagga.init(
