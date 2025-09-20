@@ -1,13 +1,10 @@
 // src/components/PackageForm.js
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import Quagga from 'quagga'
-
-// Importar autoTable correctamente
-// Nota: jspdf-autotable se debe registrar automáticamente en jsPDF
 import 'jspdf-autotable'
 
 export default function PackageForm({ package: pkg, products, onUpdate }) {
@@ -21,6 +18,15 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   })
   const inputRef = useRef(null)
 
+  // 💡 Optimización: Crear un mapa de productos para búsquedas O(1)
+  const productMap = useMemo(() => {
+    console.log('Creando mapa de productos para una búsqueda rápida...');
+    return products.reduce((map, product) => {
+      map[product.barcode] = product;
+      return map;
+    }, {});
+  }, [products]);
+
   useEffect(() => {
     if (inputRef.current && !showManualForm) {
       inputRef.current.focus()
@@ -30,7 +36,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   const handleScan = (e) => {
     const code = e.target.value
     setScannedCode(code)
-    
+
     if (e.key === 'Enter' && code.trim()) {
       processScannedCode(code)
       setScannedCode('')
@@ -38,8 +44,8 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   }
 
   const processScannedCode = (code) => {
-    // Buscar producto en la base de datos
-    const product = products.find(p => p.barcode === code);
+    // 💡 La búsqueda ahora es casi instantánea (O(1))
+    const product = productMap[code];
 
     if (!product) {
       setMessage('Producto no encontrado. Puede agregarlo manualmente.');
@@ -80,18 +86,18 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
 
   const handleManualSubmit = (e) => {
     e.preventDefault()
-    
+
     if (!manualProduct.barcode || !manualProduct.name) {
       setMessage('Por favor complete todos los campos obligatorios')
       setMessageType('danger')
       setTimeout(() => setMessage(''), 3000)
       return
     }
-    
+
     // Verificar si el código ya existe en el paquete
     const currentItems = [...pkg.items]
     const existingItemIndex = currentItems.findIndex(item => item.barcode === manualProduct.barcode)
-    
+
     if (existingItemIndex >= 0) {
       // Incrementar cantidad si ya existe
       currentItems[existingItemIndex].quantity += 1
@@ -106,13 +112,13 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       })
       setMessage(`Producto agregado: ${manualProduct.name}`)
     }
-    
+
     setMessageType('success')
     onUpdate(pkg.id, currentItems)
-    
+
     // Guardar producto manual en el JSON (simulado)
     saveManualProductToJSON(manualProduct)
-    
+
     // Resetear formulario
     setManualProduct({
       barcode: '',
@@ -131,7 +137,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       id: Date.now(),
       manual: true
     })
-    
+
     // Mostrar mensaje de confirmación
     setMessage(`Producto "${product.name}" guardado en el sistema`)
     setMessageType('success')
@@ -157,7 +163,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   const generateExcel = () => {
     // Crear workbook
     const wb = XLSX.utils.book_new()
-    
+
     // Crear hoja COMPRAS con el formato específico
     const comprasData = [
       ['ID_PAQUETE', 'CODIGO_BARRAS', 'NOMBRE_PRODUCTO', 'CANTIDAD', 'OBSERVACIONES'],
@@ -169,10 +175,10 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
         item.manual ? 'Ingreso Manual' : ''
       ])
     ]
-    
+
     const comprasWs = XLSX.utils.aoa_to_sheet(comprasData)
     XLSX.utils.book_append_sheet(wb, comprasWs, 'COMPRAS')
-    
+
     // Descargar archivo
     XLSX.writeFile(wb, `COMPRAS_${pkg.id}_${new Date().toISOString().split('T')[0]}.xls`)
   }
@@ -181,17 +187,17 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
     try {
       // Crear nuevo documento PDF
       const doc = new jsPDF()
-      
+
       // Título
       doc.setFontSize(18)
       doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
-      
+
       // Información del paquete
       doc.setFontSize(12)
       doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
       doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
       doc.text(`Total de items: ${totalItems}`, 14, 39)
-      
+
       // Preparar datos para la tabla
       const tableData = pkg.items.map(item => [
         item.barcode,
@@ -199,12 +205,12 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
         item.quantity.toString(),
         item.manual ? 'Ingreso Manual' : ''
       ])
-      
+
       // Verificar que autoTable esté disponible
       if (typeof doc.autoTable !== 'function') {
         throw new Error('La función autoTable no está disponible')
       }
-      
+
       // Crear tabla
       doc.autoTable({
         startY: 45,
@@ -220,7 +226,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
           fillColor: [240, 240, 240]
         }
       })
-      
+
       // Guardar PDF
       doc.save(`lista_paquete_${pkg.id}.pdf`)
     } catch (error) {
@@ -236,17 +242,17 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
     try {
       // Crear nuevo documento PDF
       const doc = new jsPDF()
-      
+
       // Título
       doc.setFontSize(18)
       doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
-      
+
       // Información del paquete
       doc.setFontSize(12)
       doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
       doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
       doc.text(`Total de items: ${totalItems}`, 14, 39)
-      
+
       // Encabezados de tabla
       doc.setFontSize(12)
       doc.setFont(undefined, 'bold')
@@ -254,28 +260,28 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       doc.text('Producto', 55, 50)
       doc.text('Cantidad', 135, 50)
       doc.text('Observaciones', 165, 50)
-      
+
       // Línea separadora
       doc.line(14, 52, 196, 52)
-      
+
       // Contenido de la tabla
       doc.setFont(undefined, 'normal')
       let yPosition = 60
-      
+
       pkg.items.forEach((item, index) => {
         if (yPosition > 270) {
           doc.addPage()
           yPosition = 20
         }
-        
+
         doc.text(item.barcode, 15, yPosition)
         doc.text(item.name, 55, yPosition)
         doc.text(item.quantity.toString(), 135, yPosition)
         doc.text(item.manual ? 'Ingreso Manual' : '', 165, yPosition)
-        
+
         yPosition += 10
       })
-      
+
       // Guardar PDF
       doc.save(`lista_paquete_${pkg.id}.pdf`)
     } catch (error) {
@@ -330,7 +336,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             <button type="button" className="btn-close" onClick={() => setMessage('')}></button>
           </div>
         )}
-        
+
         {!showManualForm ? (
           <>
             <div className="mb-4">
@@ -347,10 +353,10 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
               />
               <div className="form-text">Simula un lector de código de barras ingresando el código manualmente</div>
             </div>
-            
+
             <div className="d-grid gap-2">
-              <button 
-                className="btn btn-outline-primary" 
+              <button
+                className="btn btn-outline-primary"
                 onClick={startBarcodeScanner}
               >
                 <i className="bi bi-camera-video me-2"></i>Escanear código de barras
@@ -375,7 +381,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
                         className="form-control"
                         id="barcode"
                         value={manualProduct.barcode}
-                        onChange={(e) => setManualProduct({...manualProduct, barcode: e.target.value})}
+                        onChange={(e) => setManualProduct({ ...manualProduct, barcode: e.target.value })}
                         required
                       />
                     </div>
@@ -388,19 +394,19 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
                         className="form-control"
                         id="name"
                         value={manualProduct.name}
-                        onChange={(e) => setManualProduct({...manualProduct, name: e.target.value})}
+                        onChange={(e) => setManualProduct({ ...manualProduct, name: e.target.value })}
                         required
                       />
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="d-flex gap-2">
                   <button type="submit" className="btn btn-success">
                     <i className="bi bi-check-circle me-2"></i>Agregar Producto
                   </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="btn btn-secondary"
                     onClick={() => {
                       setShowManualForm(false)
@@ -414,12 +420,12 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             </div>
           </div>
         )}
-        
+
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h5>Productos en el paquete</h5>
           <span className="badge bg-primary">{totalItems} items total</span>
         </div>
-        
+
         {pkg.items.length === 0 ? (
           <div className="text-center py-4">
             <i className="bi bi-upc-scan display-4 text-muted"></i>
@@ -444,14 +450,14 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
                     <td>{item.name}</td>
                     <td>
                       <div className="d-flex align-items-center">
-                        <button 
+                        <button
                           className="btn btn-sm btn-outline-secondary"
                           onClick={() => adjustQuantity(item.barcode, -1)}
                         >
                           -
                         </button>
                         <span className="mx-2">{item.quantity}</span>
-                        <button 
+                        <button
                           className="btn btn-sm btn-outline-secondary"
                           onClick={() => adjustQuantity(item.barcode, 1)}
                         >
@@ -467,7 +473,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
                       )}
                     </td>
                     <td>
-                      <button 
+                      <button
                         className="btn btn-sm btn-danger"
                         onClick={() => removeItem(item.barcode)}
                       >
@@ -480,7 +486,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             </table>
           </div>
         )}
-        
+
         {pkg.items.length > 0 && (
           <div className="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
             <button onClick={generatePDFAlternative} className="btn btn-danger me-2">
