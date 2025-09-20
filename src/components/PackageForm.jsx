@@ -18,7 +18,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   })
   const inputRef = useRef(null)
 
-  // 💡 Optimización: Crear un mapa de productos para búsquedas O(1)
+  // Optimización: Crear un mapa de productos para búsquedas O(1)
   const productMap = useMemo(() => {
     console.log('Creando mapa de productos para una búsqueda rápida...');
     return products.reduce((map, product) => {
@@ -44,7 +44,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   }
 
   const processScannedCode = (code) => {
-    // 💡 La búsqueda ahora es casi instantánea (O(1))
+    // Buscar el producto en el mapa para un acceso rápido
     const product = productMap[code];
 
     if (!product) {
@@ -61,16 +61,16 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       return;
     }
 
-    // Actualizar items del paquete
+    // Lógica para sumar cantidad si el producto ya existe en el paquete
     const currentItems = [...pkg.items];
     const existingItemIndex = currentItems.findIndex(item => item.barcode === code);
 
     if (existingItemIndex >= 0) {
-      // Incrementar cantidad si ya existe
+      // Si el producto ya existe, incrementa su cantidad
       currentItems[existingItemIndex].quantity += 1;
       setMessage(`Cantidad incrementada: ${product.name}`);
     } else {
-      // Agregar nuevo producto
+      // Si es un producto nuevo, lo agrega al paquete con cantidad 1
       currentItems.push({
         ...product,
         quantity: 1,
@@ -94,16 +94,16 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       return
     }
 
-    // Verificar si el código ya existe en el paquete
+    // Lógica para sumar cantidad si el producto ya existe en el paquete
     const currentItems = [...pkg.items]
     const existingItemIndex = currentItems.findIndex(item => item.barcode === manualProduct.barcode)
 
     if (existingItemIndex >= 0) {
-      // Incrementar cantidad si ya existe
+      // Si el producto ya existe, incrementa su cantidad
       currentItems[existingItemIndex].quantity += 1
       setMessage(`Cantidad incrementada: ${manualProduct.name}`)
     } else {
-      // Agregar nuevo producto manual
+      // Si es un producto nuevo, lo agrega al paquete con cantidad 1
       currentItems.push({
         ...manualProduct,
         quantity: 1,
