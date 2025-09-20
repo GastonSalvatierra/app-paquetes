@@ -1,4 +1,3 @@
-// src/components/PackageForm.js
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
@@ -12,18 +11,15 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
   const [showManualForm, setShowManualForm] = useState(false)
-  const [manualProduct, setManualProduct] = useState({
-    barcode: '',
-    name: ''
-  })
+  const [manualProduct, setManualProduct] = useState({ barcode: '', name: '' })
   const inputRef = useRef(null)
 
   const productMap = useMemo(() => {
     return products.reduce((map, product) => {
-      map[product.barcode] = product;
-      return map;
-    }, {});
-  }, [products]);
+      map[product.barcode] = product
+      return map
+    }, {})
+  }, [products])
 
   useEffect(() => {
     if (inputRef.current && !showManualForm) {
@@ -32,86 +28,77 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   }, [showManualForm])
 
   const processCode = (code, isManual = false) => {
-    const product = productMap[code];
+    const product = productMap[code]
+    const currentItems = [...pkg.items]
+    const existingItemIndex = currentItems.findIndex(item => item.barcode === code)
 
-    if (!product) {
-      setMessage('Producto no encontrado. Puede agregarlo manualmente.');
-      setMessageType('warning');
-      setManualProduct({
-        barcode: code,
-        name: ''
-      });
-      setShowManualForm(true);
-      return;
+    if (!product && !isManual) {
+      setMessage('Producto no encontrado. Puede agregarlo manualmente.')
+      setMessageType('warning')
+      setManualProduct({ barcode: code, name: '' })
+      setShowManualForm(true)
+      return
     }
-
-    const currentItems = [...pkg.items];
-    const existingItemIndex = currentItems.findIndex(item => item.barcode === code);
 
     if (existingItemIndex >= 0) {
-      currentItems[existingItemIndex].quantity += 1;
-      setMessage(`Cantidad incrementada: ${product.name}`);
+      currentItems[existingItemIndex].quantity += 1
+      setMessage(`Cantidad incrementada: ${product?.name || manualProduct.name}`)
     } else {
       currentItems.push({
-        ...product,
+        ...(product || manualProduct),
         quantity: 1,
         manual: isManual
-      });
-      setMessage(`Producto agregado: ${product.name}`);
+      })
+      setMessage(`Producto agregado: ${product?.name || manualProduct.name}`)
     }
 
-    setMessageType('success');
-    onUpdate(pkg.id, currentItems);
-    setTimeout(() => setMessage(''), 3000);
-  };
+    setMessageType('success')
+    onUpdate(pkg.id, currentItems)
+    setTimeout(() => setMessage(''), 3000)
+  }
 
   const handleScan = (e) => {
     const code = e.target.value
     setScannedCode(code)
     if (e.key === 'Enter' && code.trim()) {
-      processCode(code);
-      setScannedCode('');
+      processCode(code)
+      setScannedCode('')
     }
   }
 
   const handleManualSubmit = (e) => {
-    e.preventDefault();
-    if (!manualProduct.barcode || !manualProduct.name) {
-      setMessage('Por favor complete todos los campos obligatorios');
-      setMessageType('danger');
-      return;
+    e.preventDefault()
+    const { barcode, name } = manualProduct
+
+    if (!barcode || !name) {
+      setMessage('Por favor complete todos los campos obligatorios')
+      setMessageType('danger')
+      return
     }
 
-    // Aquí validamos si el producto manual ya existe en el paquete
-    const currentItems = [...pkg.items];
-    const existingItemIndex = currentItems.findIndex(item => item.barcode === manualProduct.barcode);
+    const currentItems = [...pkg.items]
+    const existingItemIndex = currentItems.findIndex(item => item.barcode === barcode)
 
     if (existingItemIndex >= 0) {
-      currentItems[existingItemIndex].quantity += 1;
-      setMessage(`Cantidad incrementada: ${manualProduct.name}`);
-      setMessageType('success');
-      onUpdate(pkg.id, currentItems);
+      currentItems[existingItemIndex].quantity += 1
+      setMessage(`Cantidad incrementada: ${name}`)
     } else {
-      // Si el producto no existe en el paquete, lo agregamos
       currentItems.push({
         ...manualProduct,
         quantity: 1,
         id: Date.now(),
         manual: true
-      });
-      setMessage(`Producto agregado: ${manualProduct.name}`);
-      setMessageType('success');
-      onUpdate(pkg.id, currentItems);
-      saveManualProductToJSON(manualProduct);
+      })
+      setMessage(`Producto agregado: ${name}`)
+      saveManualProductToJSON(manualProduct)
     }
 
-    setManualProduct({
-      barcode: '',
-      name: ''
-    });
-    setShowManualForm(false);
-    setTimeout(() => setMessage(''), 3000);
-  };
+    setMessageType('success')
+    onUpdate(pkg.id, currentItems)
+    setManualProduct({ barcode: '', name: '' })
+    setShowManualForm(false)
+    setTimeout(() => setMessage(''), 3000)
+  }
 
   const saveManualProductToJSON = (product) => {
     console.log('Producto manual guardado:', {
@@ -119,9 +106,6 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       id: Date.now(),
       manual: true
     })
-    setMessage(`Producto "${product.name}" guardado en el sistema`)
-    setMessageType('success')
-    setTimeout(() => setMessage(''), 3000)
   }
 
   const removeItem = (barcode) => {
@@ -157,47 +141,6 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
     XLSX.writeFile(wb, `COMPRAS_${pkg.id}_${new Date().toISOString().split('T')[0]}.xls`)
   }
 
-  const generatePDF = () => {
-    try {
-      const doc = new jsPDF()
-      doc.setFontSize(18)
-      doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
-      doc.setFontSize(12)
-      doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
-      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
-      doc.text(`Total de items: ${totalItems}`, 14, 39)
-      const tableData = pkg.items.map(item => [
-        item.barcode,
-        item.name,
-        item.quantity.toString(),
-        item.manual ? 'Ingreso Manual' : ''
-      ])
-      if (typeof doc.autoTable !== 'function') {
-        throw new Error('La función autoTable no está disponible')
-      }
-      doc.autoTable({
-        startY: 45,
-        head: [['Código', 'Producto', 'Cantidad', 'Observaciones']],
-        body: tableData,
-        theme: 'grid',
-        headStyles: {
-          fillColor: [41, 128, 185],
-          textColor: 255,
-          fontStyle: 'bold'
-        },
-        alternateRowStyles: {
-          fillColor: [240, 240, 240]
-        }
-      })
-      doc.save(`lista_paquete_${pkg.id}.pdf`)
-    } catch (error) {
-      console.error('Error al generar PDF:', error)
-      setMessage('Error al generar el PDF. Verifica la consola para más detalles.')
-      setMessageType('danger')
-      setTimeout(() => setMessage(''), 5000)
-    }
-  }
-
   const generatePDFAlternative = () => {
     try {
       const doc = new jsPDF()
@@ -207,7 +150,6 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
       doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
       doc.text(`Total de items: ${totalItems}`, 14, 39)
-      doc.setFontSize(12)
       doc.setFont(undefined, 'bold')
       doc.text('Código', 15, 50)
       doc.text('Producto', 55, 50)
@@ -215,8 +157,9 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       doc.text('Observaciones', 165, 50)
       doc.line(14, 52, 196, 52)
       doc.setFont(undefined, 'normal')
+
       let yPosition = 60
-      pkg.items.forEach((item, index) => {
+      normalizedItems.forEach((item) => {
         if (yPosition > 270) {
           doc.addPage()
           yPosition = 20
@@ -229,7 +172,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       })
       doc.save(`lista_paquete_${pkg.id}.pdf`)
     } catch (error) {
-      console.error('Error al generar PDF alternativo:', error)
+      console.error('Error al generar PDF:', error)
       setMessage('Error al generar el PDF.')
       setMessageType('danger')
       setTimeout(() => setMessage(''), 5000)
@@ -243,29 +186,41 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
           type: 'LiveStream',
           target: document.querySelector('#reader'),
           constraints: {
-            facingMode: 'environment',
-          },
+            facingMode: 'environment'
+          }
         },
         decoder: {
-          readers: ['code_128_reader', 'ean_reader', 'ean_8_reader'],
-        },
+          readers: ['code_128_reader', 'ean_reader', 'ean_8_reader']
+        }
       },
       (err) => {
         if (err) {
-          console.error('Error al iniciar Quagga:', err);
-          return;
+          console.error('Error al iniciar Quagga:', err)
+          return
         }
-        Quagga.start();
+        Quagga.start()
       }
-    );
+    )
     Quagga.onDetected((data) => {
-      const code = data.codeResult.code;
-      processCode(code);
-      Quagga.stop();
-    });
-  };
+      const code = data.codeResult.code
+      processCode(code)
+      Quagga.stop()
+    })
+  }
 
   const totalItems = pkg.items.reduce((total, item) => total + item.quantity, 0)
+
+  // ✅ Normalizar items duplicados (por si los hay)
+  const normalizedItems = Object.values(
+    pkg.items.reduce((acc, item) => {
+      if (!acc[item.barcode]) {
+        acc[item.barcode] = { ...item }
+      } else {
+        acc[item.barcode].quantity += item.quantity
+      }
+      return acc
+    }, {})
+  )
 
   return (
     <div className="card">
@@ -279,6 +234,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             <button type="button" className="btn-close" onClick={() => setMessage('')}></button>
           </div>
         )}
+
         {!showManualForm ? (
           <>
             <div className="mb-4">
@@ -296,10 +252,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
               <div className="form-text">Simula un lector de código de barras ingresando el código manualmente</div>
             </div>
             <div className="d-grid gap-2">
-              <button
-                className="btn btn-outline-primary"
-                onClick={startBarcodeScanner}
-              >
+              <button className="btn btn-outline-primary" onClick={startBarcodeScanner}>
                 <i className="bi bi-camera-video me-2"></i>Escanear código de barras
               </button>
             </div>
@@ -344,14 +297,10 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
                   <button type="submit" className="btn btn-success">
                     <i className="bi bi-check-circle me-2"></i>Agregar Producto
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => {
-                      setShowManualForm(false)
-                      setManualProduct({ barcode: '', name: '' })
-                    }}
-                  >
+                  <button type="button" className="btn btn-secondary" onClick={() => {
+                    setShowManualForm(false)
+                    setManualProduct({ barcode: '', name: '' })
+                  }}>
                     <i className="bi bi-x-circle me-2"></i>Cancelar
                   </button>
                 </div>
@@ -359,11 +308,13 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             </div>
           </div>
         )}
+
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h5>Productos en el paquete</h5>
           <span className="badge bg-primary">{totalItems} items total</span>
         </div>
-        {pkg.items.length === 0 ? (
+
+        {normalizedItems.length === 0 ? (
           <div className="text-center py-4">
             <i className="bi bi-upc-scan display-4 text-muted"></i>
             <p className="mt-3 text-muted">No hay productos escaneados aún. Comienza a escanear productos.</p>
@@ -381,39 +332,22 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
                 </tr>
               </thead>
               <tbody>
-                {pkg.items.map((item, index) => (
-                  <tr key={index}>
+                {normalizedItems.map((item) => (
+                  <tr key={item.barcode}>
                     <td className="font-monospace">{item.barcode}</td>
                     <td>{item.name}</td>
                     <td>
                       <div className="d-flex align-items-center">
-                        <button
-                          className="btn btn-sm btn-outline-secondary"
-                          onClick={() => adjustQuantity(item.barcode, -1)}
-                        >
-                          -
-                        </button>
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => adjustQuantity(item.barcode, -1)}>-</button>
                         <span className="mx-2">{item.quantity}</span>
-                        <button
-                          className="btn btn-sm btn-outline-secondary"
-                          onClick={() => adjustQuantity(item.barcode, 1)}
-                        >
-                          +
-                        </button>
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => adjustQuantity(item.barcode, 1)}>+</button>
                       </div>
                     </td>
                     <td>
-                      {item.manual && (
-                        <span className="badge bg-warning text-dark">
-                          <i className="bi bi-pencil-square me-1"></i>Ingreso Manual
-                        </span>
-                      )}
+                      {item.manual && <span className="badge bg-warning text-dark"><i className="bi bi-pencil-square me-1"></i>Ingreso Manual</span>}
                     </td>
                     <td>
-                      <button
-                        className="btn btn-sm btn-danger"
-                        onClick={() => removeItem(item.barcode)}
-                      >
+                      <button className="btn btn-sm btn-danger" onClick={() => removeItem(item.barcode)}>
                         <i className="bi bi-trash"></i>
                       </button>
                     </td>
@@ -423,6 +357,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             </table>
           </div>
         )}
+
         {pkg.items.length > 0 && (
           <div className="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
             <button onClick={generatePDFAlternative} className="btn btn-danger me-2">
