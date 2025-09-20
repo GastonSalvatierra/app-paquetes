@@ -144,60 +144,133 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
     XLSX.writeFile(wb, `COMPRAS_${pkg.id}_${new Date().toISOString().split('T')[0]}.xls`)
   }
 
-  // ✅ Nueva función para generar PDF con importación dinámica
-  const generatePDFAlternative = async () => {
-    try {
-      // Importa jsPDF y el plugin de manera asíncrona
-      const { jsPDF } = await import('jspdf')
-      await import('jspdf-autotable')
-
-      const doc = new jsPDF()
-
-      doc.setFontSize(18)
-      doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
-
-      doc.setFontSize(12)
-      doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
-      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
-      doc.text(`Total de items: ${totalItems}`, 14, 39)
-
-      let yOffset = 46
-      if (responsible) {
-        doc.text(`Responsable: ${responsible}`, 14, yOffset)
-        yOffset += 7
-      }
-      if (laboratory) {
-        doc.text(`Laboratorio: ${laboratory}`, 14, yOffset)
-        yOffset += 7
-      }
-      if (isPsychotropic) {
-        doc.text(`Tipo: Psicofármaco`, 14, yOffset)
-        yOffset += 7
-      }
-
-      // Generar tabla con jspdf-autotable
-      doc.autoTable({
-        startY: yOffset + 5,
-        head: [['Código', 'Producto', 'Cantidad', 'Observaciones']],
-        body: normalizedItems.map(item => [
-          item.barcode,
-          item.name,
-          item.quantity.toString(),
-          item.manual ? 'Ingreso Manual' : ''
-        ]),
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [52, 73, 94] },
-        alternateRowStyles: { fillColor: [238, 238, 238] },
-        margin: { left: 14, right: 14 }
-      })
-
-      doc.save(`lista_paquete_${pkg.id}.pdf`)
-    } catch (error) {
-      console.error('Error al generar PDF:', error)
-      setMessage('Error al generar el PDF. Verifica la consola para más detalles.')
-      setMessageType('danger')
-      setTimeout(() => setMessage(''), 5000)
-    }
+  // ✅ Función para generar PDF usando window.print() con estilos optimizados
+  const generatePDF = () => {
+    // Crear un elemento iframe para la impresión
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+    
+    const printDocument = iframe.contentWindow.document;
+    
+    // Escribir el contenido HTML para imprimir
+    printDocument.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Lista de Paquete ${pkg.id}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 20px;
+              color: #333;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 20px;
+              border-bottom: 2px solid #345;
+              padding-bottom: 10px;
+            }
+            .header h1 {
+              color: #345;
+              margin: 0;
+            }
+            .info-section {
+              margin-bottom: 15px;
+            }
+            .info-section div {
+              margin-bottom: 5px;
+            }
+            .product-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 20px;
+            }
+            .product-table th {
+              background-color: #345;
+              color: white;
+              padding: 10px;
+              text-align: left;
+            }
+            .product-table td {
+              padding: 8px 10px;
+              border-bottom: 1px solid #ddd;
+            }
+            .product-table tr:nth-child(even) {
+              background-color: #f9f9f9;
+            }
+            .footer {
+              margin-top: 30px;
+              text-align: center;
+              font-size: 12px;
+              color: #777;
+            }
+            @media print {
+              body {
+                margin: 0;
+                padding: 15px;
+              }
+              .no-print {
+                display: none;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>LISTA DE PRODUCTOS - PAQUETE</h1>
+          </div>
+          
+          <div class="info-section">
+            <div><strong>ID del Paquete:</strong> ${pkg.id}</div>
+            <div><strong>Fecha:</strong> ${new Date().toLocaleDateString()}</div>
+            <div><strong>Total de items:</strong> ${totalItems}</div>
+            ${responsible ? `<div><strong>Responsable:</strong> ${responsible}</div>` : ''}
+            ${laboratory ? `<div><strong>Laboratorio:</strong> ${laboratory}</div>` : ''}
+            ${isPsychotropic ? `<div><strong>Tipo:</strong> Psicofármaco</div>` : ''}
+          </div>
+          
+          <table class="product-table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Observaciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${normalizedItems.map(item => `
+                <tr>
+                  <td>${item.barcode}</td>
+                  <td>${item.name}</td>
+                  <td>${item.quantity}</td>
+                  <td>${item.manual ? 'Ingreso Manual' : ''}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="footer">
+            <p>Documento generado el ${new Date().toLocaleString()}</p>
+          </div>
+        </body>
+      </html>
+    `);
+    
+    printDocument.close();
+    
+    // Esperar a que el iframe cargue completamente antes de imprimir
+    iframe.onload = function() {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      
+      // Eliminar el iframe después de imprimir
+      document.body.removeChild(iframe);
+    };
   }
 
   const startBarcodeScanner = () => {
@@ -424,7 +497,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
 
         {pkg.items.length > 0 && (
           <div className="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-            <button onClick={generatePDFAlternative} className="btn btn-danger me-2">
+            <button onClick={generatePDF} className="btn btn-danger me-2">
               <i className="bi bi-file-earmark-pdf me-2"></i>Generar PDF
             </button>
             <button onClick={generateExcel} className="btn btn-success">
