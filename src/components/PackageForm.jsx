@@ -94,7 +94,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       return
     }
 
-    // Lógica para sumar cantidad si el producto ya existe en el paquete
+    // 💡 Lógica para sumar cantidad si el producto ya existe en el paquete
     const currentItems = [...pkg.items]
     const existingItemIndex = currentItems.findIndex(item => item.barcode === manualProduct.barcode)
 
