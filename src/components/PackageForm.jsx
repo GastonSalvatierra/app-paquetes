@@ -1,3 +1,4 @@
+// src/components/PackageForm.js
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
@@ -12,6 +13,12 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   const [messageType, setMessageType] = useState('success')
   const [showManualForm, setShowManualForm] = useState(false)
   const [manualProduct, setManualProduct] = useState({ barcode: '', name: '' })
+
+  // ✅ Nuevos estados para la información del rótulo
+  const [responsible, setResponsible] = useState('')
+  const [laboratory, setLaboratory] = useState('')
+  const [isPsychotropic, setIsPsychotropic] = useState(false)
+
   const inputRef = useRef(null)
 
   const productMap = useMemo(() => {
@@ -144,21 +151,43 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   const generatePDFAlternative = () => {
     try {
       const doc = new jsPDF()
+
+      // ✅ Título del PDF
       doc.setFontSize(18)
       doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
+
+      // ✅ Información del paquete y nuevo rótulo
       doc.setFontSize(12)
       doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
       doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
       doc.text(`Total de items: ${totalItems}`, 14, 39)
+      
+      // ✅ Nuevos campos en el rótulo
+      let yOffset = 46;
+      if (responsible) {
+        doc.text(`Responsable: ${responsible}`, 14, yOffset);
+        yOffset += 7;
+      }
+      if (laboratory) {
+        doc.text(`Laboratorio: ${laboratory}`, 14, yOffset);
+        yOffset += 7;
+      }
+      if (isPsychotropic) {
+        doc.text(`Tipo: Psicofármaco`, 14, yOffset);
+        yOffset += 7;
+      }
+
+      // Encabezados de tabla
+      const startY = yOffset + 5;
       doc.setFont(undefined, 'bold')
-      doc.text('Código', 15, 50)
-      doc.text('Producto', 55, 50)
-      doc.text('Cantidad', 135, 50)
-      doc.text('Observaciones', 165, 50)
-      doc.line(14, 52, 196, 52)
+      doc.text('Código', 15, startY)
+      doc.text('Producto', 55, startY)
+      doc.text('Cantidad', 135, startY)
+      doc.text('Observaciones', 165, startY)
+      doc.line(14, startY + 2, 196, startY + 2)
       doc.setFont(undefined, 'normal')
 
-      let yPosition = 60
+      let yPosition = startY + 10
       normalizedItems.forEach((item) => {
         if (yPosition > 270) {
           doc.addPage()
@@ -210,7 +239,6 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
 
   const totalItems = pkg.items.reduce((total, item) => total + item.quantity, 0)
 
-  // ✅ Normalizar items duplicados (por si los hay)
   const normalizedItems = Object.values(
     pkg.items.reduce((acc, item) => {
       if (!acc[item.barcode]) {
@@ -234,6 +262,50 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             <button type="button" className="btn-close" onClick={() => setMessage('')}></button>
           </div>
         )}
+
+        <div className="card mb-4">
+          <div className="card-header">
+            <h6 className="mb-0">Información del Rótulo</h6>
+          </div>
+          <div className="card-body">
+            <div className="row g-3">
+              <div className="col-md-6">
+                <label htmlFor="responsible" className="form-label">Nombre del Responsable</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  id="responsible"
+                  value={responsible}
+                  onChange={(e) => setResponsible(e.target.value)}
+                />
+              </div>
+              <div className="col-md-6">
+                <label htmlFor="laboratory" className="form-label">Laboratorio</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  id="laboratory"
+                  value={laboratory}
+                  onChange={(e) => setLaboratory(e.target.value)}
+                />
+              </div>
+              <div className="col-12">
+                <div className="form-check">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="isPsychotropic"
+                    checked={isPsychotropic}
+                    onChange={(e) => setIsPsychotropic(e.target.checked)}
+                  />
+                  <label className="form-check-label" htmlFor="isPsychotropic">
+                    Es Psicofármaco
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {!showManualForm ? (
           <>
