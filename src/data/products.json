@@ -1,0 +1,40 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "barcode": "7790000000017",
+      "name": "Aspirina 500mg x 20 comp",
+      "manual": false
+    },
+    {
+      "id": 2,
+      "barcode": "7790000000024",
+      "name": "Paracetamol 1g x 12 comp",
+      "manual": false
+    },
+    {
+      "id": 3,
+      "barcode": "7790000000031",
+      "name": "Omeprazol 20mg x 14 caps",
+      "manual": false
+    },
+    {
+      "id": 4,
+      "barcode": "7790000000048",
+      "name": "Loratadina 10mg x 10 comp",
+      "manual": false
+    },
+    {
+      "id": 5,
+      "barcode": "7790000000055",
+      "name": "Ibuprofeno 400mg x 20 comp",
+      "manual": false
+    },
+    {
+      "id": 6,
+      "barcode": "7790000000062",
+      "name": "Amoxicilina 500mg x 12 comp",
+      "manual": false
+    }
+  ]
+}
