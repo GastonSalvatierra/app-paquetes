@@ -18,9 +18,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   })
   const inputRef = useRef(null)
 
-  // Optimización: Crear un mapa de productos para búsquedas O(1)
   const productMap = useMemo(() => {
-    console.log('Creando mapa de productos para una búsqueda rápida...');
     return products.reduce((map, product) => {
       map[product.barcode] = product;
       return map;
@@ -33,26 +31,12 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
     }
   }, [showManualForm])
 
-  const handleScan = (e) => {
-    const code = e.target.value
-    setScannedCode(code)
-
-    if (e.key === 'Enter' && code.trim()) {
-      processScannedCode(code)
-      setScannedCode('')
-    }
-  }
-
-  const processScannedCode = (code) => {
-    // Buscar el producto en el mapa para un acceso rápido
+  const processCode = (code, isManual = false) => {
     const product = productMap[code];
 
     if (!product) {
       setMessage('Producto no encontrado. Puede agregarlo manualmente.');
       setMessageType('warning');
-      setTimeout(() => setMessage(''), 3000);
-
-      // Pre-llenar el código de barras en el formulario manual
       setManualProduct({
         barcode: code,
         name: ''
@@ -61,20 +45,17 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       return;
     }
 
-    // Lógica para sumar cantidad si el producto ya existe en el paquete
     const currentItems = [...pkg.items];
     const existingItemIndex = currentItems.findIndex(item => item.barcode === code);
 
     if (existingItemIndex >= 0) {
-      // Si el producto ya existe, incrementa su cantidad
       currentItems[existingItemIndex].quantity += 1;
       setMessage(`Cantidad incrementada: ${product.name}`);
     } else {
-      // Si es un producto nuevo, lo agrega al paquete con cantidad 1
       currentItems.push({
         ...product,
         quantity: 1,
-        manual: false
+        manual: isManual
       });
       setMessage(`Producto agregado: ${product.name}`);
     }
@@ -82,63 +63,62 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
     setMessageType('success');
     onUpdate(pkg.id, currentItems);
     setTimeout(() => setMessage(''), 3000);
+  };
+
+  const handleScan = (e) => {
+    const code = e.target.value
+    setScannedCode(code)
+    if (e.key === 'Enter' && code.trim()) {
+      processCode(code);
+      setScannedCode('');
+    }
   }
 
   const handleManualSubmit = (e) => {
-    e.preventDefault()
-
+    e.preventDefault();
     if (!manualProduct.barcode || !manualProduct.name) {
-      setMessage('Por favor complete todos los campos obligatorios')
-      setMessageType('danger')
-      setTimeout(() => setMessage(''), 3000)
-      return
+      setMessage('Por favor complete todos los campos obligatorios');
+      setMessageType('danger');
+      return;
     }
 
-    // 💡 Lógica para sumar cantidad si el producto ya existe en el paquete
-    const currentItems = [...pkg.items]
-    const existingItemIndex = currentItems.findIndex(item => item.barcode === manualProduct.barcode)
+    // Aquí validamos si el producto manual ya existe en el paquete
+    const currentItems = [...pkg.items];
+    const existingItemIndex = currentItems.findIndex(item => item.barcode === manualProduct.barcode);
 
     if (existingItemIndex >= 0) {
-      // Si el producto ya existe, incrementa su cantidad
-      currentItems[existingItemIndex].quantity += 1
-      setMessage(`Cantidad incrementada: ${manualProduct.name}`)
+      currentItems[existingItemIndex].quantity += 1;
+      setMessage(`Cantidad incrementada: ${manualProduct.name}`);
+      setMessageType('success');
+      onUpdate(pkg.id, currentItems);
     } else {
-      // Si es un producto nuevo, lo agrega al paquete con cantidad 1
+      // Si el producto no existe en el paquete, lo agregamos
       currentItems.push({
         ...manualProduct,
         quantity: 1,
-        id: Date.now(), // ID temporal para productos manuales
+        id: Date.now(),
         manual: true
-      })
-      setMessage(`Producto agregado: ${manualProduct.name}`)
+      });
+      setMessage(`Producto agregado: ${manualProduct.name}`);
+      setMessageType('success');
+      onUpdate(pkg.id, currentItems);
+      saveManualProductToJSON(manualProduct);
     }
 
-    setMessageType('success')
-    onUpdate(pkg.id, currentItems)
-
-    // Guardar producto manual en el JSON (simulado)
-    saveManualProductToJSON(manualProduct)
-
-    // Resetear formulario
     setManualProduct({
       barcode: '',
       name: ''
-    })
-    setShowManualForm(false)
-    setTimeout(() => setMessage(''), 3000)
-  }
+    });
+    setShowManualForm(false);
+    setTimeout(() => setMessage(''), 3000);
+  };
 
-  // Función simulada para guardar en JSON
   const saveManualProductToJSON = (product) => {
-    // En una aplicación real, aquí harías una llamada a una API
-    // o actualizarías el estado global para persistir el producto
     console.log('Producto manual guardado:', {
       ...product,
       id: Date.now(),
       manual: true
     })
-
-    // Mostrar mensaje de confirmación
     setMessage(`Producto "${product.name}" guardado en el sistema`)
     setMessageType('success')
     setTimeout(() => setMessage(''), 3000)
@@ -161,10 +141,7 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   }
 
   const generateExcel = () => {
-    // Crear workbook
     const wb = XLSX.utils.book_new()
-
-    // Crear hoja COMPRAS con el formato específico
     const comprasData = [
       ['ID_PAQUETE', 'CODIGO_BARRAS', 'NOMBRE_PRODUCTO', 'CANTIDAD', 'OBSERVACIONES'],
       ...pkg.items.map(item => [
@@ -175,43 +152,29 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
         item.manual ? 'Ingreso Manual' : ''
       ])
     ]
-
     const comprasWs = XLSX.utils.aoa_to_sheet(comprasData)
     XLSX.utils.book_append_sheet(wb, comprasWs, 'COMPRAS')
-
-    // Descargar archivo
     XLSX.writeFile(wb, `COMPRAS_${pkg.id}_${new Date().toISOString().split('T')[0]}.xls`)
   }
 
   const generatePDF = () => {
     try {
-      // Crear nuevo documento PDF
       const doc = new jsPDF()
-
-      // Título
       doc.setFontSize(18)
       doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
-
-      // Información del paquete
       doc.setFontSize(12)
       doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
       doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
       doc.text(`Total de items: ${totalItems}`, 14, 39)
-
-      // Preparar datos para la tabla
       const tableData = pkg.items.map(item => [
         item.barcode,
         item.name,
         item.quantity.toString(),
         item.manual ? 'Ingreso Manual' : ''
       ])
-
-      // Verificar que autoTable esté disponible
       if (typeof doc.autoTable !== 'function') {
         throw new Error('La función autoTable no está disponible')
       }
-
-      // Crear tabla
       doc.autoTable({
         startY: 45,
         head: [['Código', 'Producto', 'Cantidad', 'Observaciones']],
@@ -226,8 +189,6 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
           fillColor: [240, 240, 240]
         }
       })
-
-      // Guardar PDF
       doc.save(`lista_paquete_${pkg.id}.pdf`)
     } catch (error) {
       console.error('Error al generar PDF:', error)
@@ -237,52 +198,35 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
     }
   }
 
-  // Función alternativa para generar PDF sin autoTable
   const generatePDFAlternative = () => {
     try {
-      // Crear nuevo documento PDF
       const doc = new jsPDF()
-
-      // Título
       doc.setFontSize(18)
       doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
-
-      // Información del paquete
       doc.setFontSize(12)
       doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
       doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
       doc.text(`Total de items: ${totalItems}`, 14, 39)
-
-      // Encabezados de tabla
       doc.setFontSize(12)
       doc.setFont(undefined, 'bold')
       doc.text('Código', 15, 50)
       doc.text('Producto', 55, 50)
       doc.text('Cantidad', 135, 50)
       doc.text('Observaciones', 165, 50)
-
-      // Línea separadora
       doc.line(14, 52, 196, 52)
-
-      // Contenido de la tabla
       doc.setFont(undefined, 'normal')
       let yPosition = 60
-
       pkg.items.forEach((item, index) => {
         if (yPosition > 270) {
           doc.addPage()
           yPosition = 20
         }
-
         doc.text(item.barcode, 15, yPosition)
         doc.text(item.name, 55, yPosition)
         doc.text(item.quantity.toString(), 135, yPosition)
         doc.text(item.manual ? 'Ingreso Manual' : '', 165, yPosition)
-
         yPosition += 10
       })
-
-      // Guardar PDF
       doc.save(`lista_paquete_${pkg.id}.pdf`)
     } catch (error) {
       console.error('Error al generar PDF alternativo:', error)
@@ -297,13 +241,13 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
       {
         inputStream: {
           type: 'LiveStream',
-          target: document.querySelector('#reader'), // Contenedor para la cámara
+          target: document.querySelector('#reader'),
           constraints: {
-            facingMode: 'environment', // Usar la cámara trasera
+            facingMode: 'environment',
           },
         },
         decoder: {
-          readers: ['code_128_reader', 'ean_reader', 'ean_8_reader'], // Tipos de códigos de barras soportados
+          readers: ['code_128_reader', 'ean_reader', 'ean_8_reader'],
         },
       },
       (err) => {
@@ -314,11 +258,10 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
         Quagga.start();
       }
     );
-
     Quagga.onDetected((data) => {
       const code = data.codeResult.code;
-      processScannedCode(code);
-      Quagga.stop(); // Detener el escáner después de leer un código
+      processCode(code);
+      Quagga.stop();
     });
   };
 
@@ -336,7 +279,6 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             <button type="button" className="btn-close" onClick={() => setMessage('')}></button>
           </div>
         )}
-
         {!showManualForm ? (
           <>
             <div className="mb-4">
@@ -353,7 +295,6 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
               />
               <div className="form-text">Simula un lector de código de barras ingresando el código manualmente</div>
             </div>
-
             <div className="d-grid gap-2">
               <button
                 className="btn btn-outline-primary"
@@ -362,7 +303,6 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
                 <i className="bi bi-camera-video me-2"></i>Escanear código de barras
               </button>
             </div>
-
             <div id="reader" style={{ width: '100%', height: '300px' }}></div>
           </>
         ) : (
@@ -400,7 +340,6 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
                     </div>
                   </div>
                 </div>
-
                 <div className="d-flex gap-2">
                   <button type="submit" className="btn btn-success">
                     <i className="bi bi-check-circle me-2"></i>Agregar Producto
@@ -420,12 +359,10 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             </div>
           </div>
         )}
-
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h5>Productos en el paquete</h5>
           <span className="badge bg-primary">{totalItems} items total</span>
         </div>
-
         {pkg.items.length === 0 ? (
           <div className="text-center py-4">
             <i className="bi bi-upc-scan display-4 text-muted"></i>
@@ -486,7 +423,6 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             </table>
           </div>
         )}
-
         {pkg.items.length > 0 && (
           <div className="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
             <button onClick={generatePDFAlternative} className="btn btn-danger me-2">
