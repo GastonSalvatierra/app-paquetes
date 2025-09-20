@@ -1,11 +1,8 @@
-// src/components/PackageForm.js
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
-import { jsPDF } from 'jspdf'
 import Quagga from 'quagga'
-import 'jspdf-autotable'
 
 export default function PackageForm({ package: pkg, products, onUpdate }) {
   const [scannedCode, setScannedCode] = useState('')
@@ -14,7 +11,6 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   const [showManualForm, setShowManualForm] = useState(false)
   const [manualProduct, setManualProduct] = useState({ barcode: '', name: '' })
 
-  // Nuevos estados para la información del rótulo
   const [responsible, setResponsible] = useState('')
   const [laboratory, setLaboratory] = useState('')
   const [isPsychotropic, setIsPsychotropic] = useState(false)
@@ -148,67 +144,61 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
     XLSX.writeFile(wb, `COMPRAS_${pkg.id}_${new Date().toISOString().split('T')[0]}.xls`)
   }
 
-  // Nueva función para generar PDF con toda la info requerida
-const generatePDFAlternative = async () => {
-  try {
-    // ✅ Importación dinámica y explícita
-    const { jsPDF } = await import('jspdf');
-    const autoTable = await import('jspdf-autotable');
+  // ✅ Nueva función para generar PDF con importación dinámica
+  const generatePDFAlternative = async () => {
+    try {
+      // Importa jsPDF y el plugin de manera asíncrona
+      const { jsPDF } = await import('jspdf')
+      await import('jspdf-autotable')
 
-    // ✅ Crea una nueva instancia de jsPDF
-    const doc = new jsPDF();
-    
-    // ✅ Título del PDF
-    doc.setFontSize(18);
-    doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' });
+      const doc = new jsPDF()
 
-    // ✅ Información del paquete y rótulo
-    doc.setFontSize(12);
-    doc.text(`ID del Paquete: ${pkg.id}`, 14, 25);
-    doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32);
-    doc.text(`Total de items: ${totalItems}`, 14, 39);
+      doc.setFontSize(18)
+      doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
 
-    // ✅ Nuevos campos del rótulo
-    let yOffset = 46;
-    if (responsible) {
-      doc.text(`Responsable: ${responsible}`, 14, yOffset);
-      yOffset += 7;
+      doc.setFontSize(12)
+      doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
+      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
+      doc.text(`Total de items: ${totalItems}`, 14, 39)
+
+      let yOffset = 46
+      if (responsible) {
+        doc.text(`Responsable: ${responsible}`, 14, yOffset)
+        yOffset += 7
+      }
+      if (laboratory) {
+        doc.text(`Laboratorio: ${laboratory}`, 14, yOffset)
+        yOffset += 7
+      }
+      if (isPsychotropic) {
+        doc.text(`Tipo: Psicofármaco`, 14, yOffset)
+        yOffset += 7
+      }
+
+      // Generar tabla con jspdf-autotable
+      doc.autoTable({
+        startY: yOffset + 5,
+        head: [['Código', 'Producto', 'Cantidad', 'Observaciones']],
+        body: normalizedItems.map(item => [
+          item.barcode,
+          item.name,
+          item.quantity.toString(),
+          item.manual ? 'Ingreso Manual' : ''
+        ]),
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [52, 73, 94] },
+        alternateRowStyles: { fillColor: [238, 238, 238] },
+        margin: { left: 14, right: 14 }
+      })
+
+      doc.save(`lista_paquete_${pkg.id}.pdf`)
+    } catch (error) {
+      console.error('Error al generar PDF:', error)
+      setMessage('Error al generar el PDF. Verifica la consola para más detalles.')
+      setMessageType('danger')
+      setTimeout(() => setMessage(''), 5000)
     }
-    if (laboratory) {
-      doc.text(`Laboratorio: ${laboratory}`, 14, yOffset);
-      yOffset += 7;
-    }
-    if (isPsychotropic) {
-      doc.text(`Tipo: Psicofármaco`, 14, yOffset);
-      yOffset += 7;
-    }
-
-    // ✅ Uso de autoTable para generar la tabla
-    doc.autoTable({
-      startY: yOffset + 5,
-      head: [['Código', 'Producto', 'Cantidad', 'Observaciones']],
-      body: normalizedItems.map(item => [
-        item.barcode,
-        item.name,
-        item.quantity.toString(),
-        item.manual ? 'Ingreso Manual' : ''
-      ]),
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [52, 73, 94] },
-      alternateRowStyles: { fillColor: [238, 238, 238] },
-      margin: { left: 14, right: 14 }
-    });
-
-    // ✅ Guardar archivo
-    doc.save(`lista_paquete_${pkg.id}.pdf`);
-  } catch (error) {
-    console.error('Error al generar PDF:', error);
-    setMessage('Error al generar el PDF. Verifica la consola para más detalles.');
-    setMessageType('danger');
-    setTimeout(() => setMessage(''), 5000);
   }
-};
-
 
   const startBarcodeScanner = () => {
     Quagga.init(
@@ -372,9 +362,9 @@ const generatePDFAlternative = async () => {
                     <i className="bi bi-check-circle me-2"></i>Agregar Producto
                   </button>
                   <button type="button" className="btn btn-secondary" onClick={() => {
-                    setShowManualForm(false)
-                    setManualProduct({ barcode: '', name: '' })
-                  }}>
+                      setShowManualForm(false)
+                      setManualProduct({ barcode: '', name: '' })
+                    }}>
                     <i className="bi bi-x-circle me-2"></i>Cancelar
                   </button>
                 </div>
