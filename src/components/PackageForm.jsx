@@ -149,36 +149,41 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
   }
 
   // Nueva función para generar PDF con toda la info requerida
- const generatePDFAlternative = () => {
+const generatePDFAlternative = async () => {
   try {
-    const doc = new jsPDF()
+    // ✅ Importación dinámica y explícita
+    const { jsPDF } = await import('jspdf');
+    const autoTable = await import('jspdf-autotable');
 
-    // Título
-    doc.setFontSize(18)
-    doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' })
+    // ✅ Crea una nueva instancia de jsPDF
+    const doc = new jsPDF();
+    
+    // ✅ Título del PDF
+    doc.setFontSize(18);
+    doc.text('LISTA DE PRODUCTOS - PAQUETE', 105, 15, { align: 'center' });
 
-    // Datos del paquete y rótulo
-    doc.setFontSize(12)
-    doc.text(`ID del Paquete: ${pkg.id}`, 14, 25)
-    doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32)
-    doc.text(`Total de items: ${totalItems}`, 14, 39)
+    // ✅ Información del paquete y rótulo
+    doc.setFontSize(12);
+    doc.text(`ID del Paquete: ${pkg.id}`, 14, 25);
+    doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 32);
+    doc.text(`Total de items: ${totalItems}`, 14, 39);
 
-    // Info responsable, laboratorio, psicofármaco
-    let yOffset = 46
+    // ✅ Nuevos campos del rótulo
+    let yOffset = 46;
     if (responsible) {
-      doc.text(`Responsable: ${responsible}`, 14, yOffset)
-      yOffset += 7
+      doc.text(`Responsable: ${responsible}`, 14, yOffset);
+      yOffset += 7;
     }
     if (laboratory) {
-      doc.text(`Laboratorio: ${laboratory}`, 14, yOffset)
-      yOffset += 7
+      doc.text(`Laboratorio: ${laboratory}`, 14, yOffset);
+      yOffset += 7;
     }
     if (isPsychotropic) {
-      doc.text(`Tipo: Psicofármaco`, 14, yOffset)
-      yOffset += 7
+      doc.text(`Tipo: Psicofármaco`, 14, yOffset);
+      yOffset += 7;
     }
 
-    // Generar tabla con jspdf-autotable
+    // ✅ Uso de autoTable para generar la tabla
     doc.autoTable({
       startY: yOffset + 5,
       head: [['Código', 'Producto', 'Cantidad', 'Observaciones']],
@@ -189,20 +194,20 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
         item.manual ? 'Ingreso Manual' : ''
       ]),
       styles: { fontSize: 10 },
-      headStyles: { fillColor: [52, 73, 94] }, // color azul oscuro
-      alternateRowStyles: { fillColor: [238, 238, 238] }, // gris claro alternado
+      headStyles: { fillColor: [52, 73, 94] },
+      alternateRowStyles: { fillColor: [238, 238, 238] },
       margin: { left: 14, right: 14 }
-    })
+    });
 
-    // Guardar archivo
-    doc.save(`lista_paquete_${pkg.id}.pdf`)
+    // ✅ Guardar archivo
+    doc.save(`lista_paquete_${pkg.id}.pdf`);
   } catch (error) {
-    console.error('Error al generar PDF:', error)
-    setMessage('Error al generar el PDF. Verifica la consola para más detalles.')
-    setMessageType('danger')
-    setTimeout(() => setMessage(''), 5000)
+    console.error('Error al generar PDF:', error);
+    setMessage('Error al generar el PDF. Verifica la consola para más detalles.');
+    setMessageType('danger');
+    setTimeout(() => setMessage(''), 5000);
   }
-}
+};
 
 
   const startBarcodeScanner = () => {
