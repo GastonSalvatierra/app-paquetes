@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
+import Quagga from 'quagga'
 
 // Importar autoTable correctamente
 // Nota: jspdf-autotable se debe registrar automáticamente en jsPDF
@@ -38,43 +39,43 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
 
   const processScannedCode = (code) => {
     // Buscar producto en la base de datos
-    const product = products.find(p => p.barcode === code)
-    
+    const product = products.find(p => p.barcode === code);
+
     if (!product) {
-      setMessage('Producto no encontrado. Puede agregarlo manualmente.')
-      setMessageType('warning')
-      setTimeout(() => setMessage(''), 3000)
-      
+      setMessage('Producto no encontrado. Puede agregarlo manualmente.');
+      setMessageType('warning');
+      setTimeout(() => setMessage(''), 3000);
+
       // Pre-llenar el código de barras en el formulario manual
       setManualProduct({
         barcode: code,
         name: ''
-      })
-      setShowManualForm(true)
-      return
+      });
+      setShowManualForm(true);
+      return;
     }
-    
+
     // Actualizar items del paquete
-    const currentItems = [...pkg.items]
-    const existingItemIndex = currentItems.findIndex(item => item.barcode === code)
-    
+    const currentItems = [...pkg.items];
+    const existingItemIndex = currentItems.findIndex(item => item.barcode === code);
+
     if (existingItemIndex >= 0) {
       // Incrementar cantidad si ya existe
-      currentItems[existingItemIndex].quantity += 1
-      setMessage(`Cantidad incrementada: ${product.name}`)
+      currentItems[existingItemIndex].quantity += 1;
+      setMessage(`Cantidad incrementada: ${product.name}`);
     } else {
       // Agregar nuevo producto
       currentItems.push({
         ...product,
         quantity: 1,
         manual: false
-      })
-      setMessage(`Producto agregado: ${product.name}`)
+      });
+      setMessage(`Producto agregado: ${product.name}`);
     }
-    
-    setMessageType('success')
-    onUpdate(pkg.id, currentItems)
-    setTimeout(() => setMessage(''), 3000)
+
+    setMessageType('success');
+    onUpdate(pkg.id, currentItems);
+    setTimeout(() => setMessage(''), 3000);
   }
 
   const handleManualSubmit = (e) => {
@@ -285,6 +286,36 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
     }
   }
 
+  const startBarcodeScanner = () => {
+    Quagga.init(
+      {
+        inputStream: {
+          type: 'LiveStream',
+          target: document.querySelector('#reader'), // Contenedor para la cámara
+          constraints: {
+            facingMode: 'environment', // Usar la cámara trasera
+          },
+        },
+        decoder: {
+          readers: ['code_128_reader', 'ean_reader', 'ean_8_reader'], // Tipos de códigos de barras soportados
+        },
+      },
+      (err) => {
+        if (err) {
+          console.error('Error al iniciar Quagga:', err);
+          return;
+        }
+        Quagga.start();
+      }
+    );
+
+    Quagga.onDetected((data) => {
+      const code = data.codeResult.code;
+      processScannedCode(code);
+      Quagga.stop(); // Detener el escáner después de leer un código
+    });
+  };
+
   const totalItems = pkg.items.reduce((total, item) => total + item.quantity, 0)
 
   return (
@@ -320,11 +351,13 @@ export default function PackageForm({ package: pkg, products, onUpdate }) {
             <div className="d-grid gap-2">
               <button 
                 className="btn btn-outline-primary" 
-                onClick={() => setShowManualForm(true)}
+                onClick={startBarcodeScanner}
               >
-                <i className="bi bi-pencil-square me-2"></i>Agregar producto manualmente
+                <i className="bi bi-camera-video me-2"></i>Escanear código de barras
               </button>
             </div>
+
+            <div id="reader" style={{ width: '100%', height: '300px' }}></div>
           </>
         ) : (
           <div className="card mb-4">
